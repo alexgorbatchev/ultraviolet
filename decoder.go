@@ -1413,7 +1413,7 @@ func parseKittyKeyboard(params ansi.Params) (Event Event) {
 				}
 
 			case 2:
-				// shifted key + base key
+				// base layout key (the physical key in the standard PC-101 key layout)
 				if b := rune(p.Param(1)); unicode.IsPrint(b) {
 					// XXX: When alternate key reporting is enabled, the protocol
 					// can return 3 things, the unicode codepoint of the key,
@@ -1423,7 +1423,6 @@ func parseKittyKeyboard(params ansi.Params) (Event Event) {
 					// when using a different language layout.
 					key.BaseCode = b
 				}
-				fallthrough
 
 			case 1:
 				// shifted key

@@ -675,6 +675,12 @@ func TestParseSequence(t *testing.T) {
 			[]byte("\x1b[97;;229u"),
 			[]Event{KeyPressEvent{Code: 'a', Text: "å"}},
 		},
+		// Shift+4 on Ukrainian layout: terminal sends no sub-params,
+		// unicode=52(4), mod=Shift, text=59(;) — Text already correct.
+		seqTest{
+			[]byte("\x1b[52;2;59u"),
+			[]Event{KeyPressEvent{Code: '4', Text: ";", Mod: ModShift}},
+		},
 
 		// focus/blur
 		seqTest{
