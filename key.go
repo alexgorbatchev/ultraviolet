@@ -32,6 +32,10 @@ const (
 	ModScrollLock // Defined in Windows API only
 )
 
+// lockMods are the key lock states. They record a toggled keyboard state, not
+// a key held down with the key event.
+const lockMods = ModCapsLock | ModNumLock | ModScrollLock
+
 // Contains reports whether m contains the given modifiers.
 //
 // Example:
@@ -312,6 +316,16 @@ type Key struct {
 // A string can be a key name like "enter", "tab", "a", or a printable
 // character like "1" or " ". It can also have combinations of modifiers like
 // "ctrl+a", "shift+enter", "alt+tab", "ctrl+shift+enter", etc.
+//
+// A lock state counts as a modifier only when the string names it, so "ctrl+a"
+// matches ctrl+a while caps lock or num lock is on, "kp0" matches keypad 0
+// while either lock is on, and "ctrl+capslock+a" requires caps lock but still
+// matches while num lock is on. The exception is caps lock on a key whose text
+// contains a character with two cases, one that [unicode.ToUpper] and
+// [unicode.ToLower] map apart: caps lock chose which case the key produced, so
+// the key keeps caps lock as a modifier and matches through its text instead.
+// "a" with caps lock on matches "A" but not "a", while shift+1 producing "!"
+// with caps lock on still matches "shift+1".
 func (k Key) MatchString(s ...string) bool {
 	for _, s := range s {
 		if keyMatchString(k, s) {
@@ -377,9 +391,36 @@ func keyMatchString(k Key, s string) bool {
 		}
 	}
 
+	// A terminal reports an enabled lock as a modifier bit: the Kitty
+	// keyboard protocol on the key events it encodes, the Windows key path
+	// for caps lock. A lock the string does not name is ignored, except caps
+	// lock on a key whose text has a character with two cases: caps lock
+	// chose that case, so the key keeps its caps lock bit and matches through
+	// the text comparison below, as legacy input does. Num lock and scroll
+	// lock are ignored even on a key with text, since the Kitty and Windows
+	// decoders derive text with both masked out.
+	ignored := lockMods &^ mod
+	if hasCase(k.Text) {
+		ignored &^= ModCapsLock
+	}
+	kmod := k.Mod &^ ignored
+
 	// Check if we have a match.
-	return (k.Mod == mod && k.Code == code) ||
+	return (kmod == mod && k.Code == code) ||
 		(k.Text != "" && k.Text == text)
+}
+
+// hasCase reports whether s contains a character with two cases, the only
+// kind of text caps lock changes. It uses the simple case mappings the
+// decoder applies when caps lock is on, so a lowercase letter with no
+// single-rune uppercase, such as 'ß', does not count.
+func hasCase(s string) bool {
+	for _, r := range s {
+		if unicode.ToUpper(r) != unicode.ToLower(r) {
+			return true
+		}
+	}
+	return false
 }
 
 // String implements [fmt.Stringer] and is quite useful for matching key

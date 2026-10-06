@@ -2059,6 +2059,96 @@ func TestKeyMatchString(t *testing.T) {
 			name:  "ctrl+capslock+a",
 			key:   Key{Code: 'a', Mod: ModCtrl | ModCapsLock},
 			input: "ctrl+a",
+			want:  true,
+		},
+		{
+			name:  "ctrl+q with caps lock",
+			key:   Key{Code: 'q', Mod: ModCtrl | ModCapsLock},
+			input: "ctrl+q",
+			want:  true,
+		},
+		{
+			name:  "ctrl+q with num lock",
+			key:   Key{Code: 'q', Mod: ModCtrl | ModNumLock},
+			input: "ctrl+q",
+			want:  true,
+		},
+		{
+			name:  "ctrl+q with caps lock and num lock",
+			key:   Key{Code: 'q', Mod: ModCtrl | ModCapsLock | ModNumLock},
+			input: "ctrl+q",
+			want:  true,
+		},
+		{
+			name:  "ctrl+q with scroll lock",
+			key:   Key{Code: 'q', Mod: ModCtrl | ModScrollLock},
+			input: "ctrl+q",
+			want:  true,
+		},
+		{
+			name:  "f6 with num lock",
+			key:   Key{Code: KeyF6, Mod: ModNumLock},
+			input: "f6",
+			want:  true,
+		},
+		{
+			name:  "a with caps lock reported as an escape code does not match a",
+			key:   Key{Code: 'a', Mod: ModCapsLock, Text: "A"},
+			input: "a",
+			want:  false,
+		},
+		{
+			name:  "ctrl+q with both locks the spec names and scroll lock",
+			key:   Key{Code: 'q', Mod: ModCtrl | ModCapsLock | ModNumLock | ModScrollLock},
+			input: "ctrl+capslock+numlock+q",
+			want:  true,
+		},
+		{
+			name:  "ctrl+q with one of the two locks the spec names",
+			key:   Key{Code: 'q', Mod: ModCtrl | ModCapsLock},
+			input: "ctrl+capslock+numlock+q",
+			want:  false,
+		},
+		{
+			name:  "ctrl+alt+1 with caps lock",
+			key:   Key{Code: '1', Mod: ModCtrl | ModAlt | ModCapsLock},
+			input: "ctrl+1",
+			want:  false,
+		},
+		{
+			name:  "ctrl+q without the caps lock the spec names",
+			key:   Key{Code: 'q', Mod: ModCtrl},
+			input: "ctrl+capslock+q",
+			want:  false,
+		},
+		{
+			name:  "f6 without the num lock the spec names",
+			key:   Key{Code: KeyF6},
+			input: "numlock+f6",
+			want:  false,
+		},
+		{
+			name:  "ctrl+q with the caps lock the spec names",
+			key:   Key{Code: 'q', Mod: ModCtrl | ModCapsLock},
+			input: "ctrl+capslock+q",
+			want:  true,
+		},
+		{
+			name:  "ctrl+q with the caps lock the spec names and num lock",
+			key:   Key{Code: 'q', Mod: ModCtrl | ModCapsLock | ModNumLock},
+			input: "ctrl+capslock+q",
+			want:  true,
+		},
+		{
+			name:  "ctrl+q with num lock but not the caps lock the spec names",
+			key:   Key{Code: 'q', Mod: ModCtrl | ModNumLock},
+			input: "ctrl+capslock+q",
+			want:  false,
+		},
+		{
+			name:  "ctrl+alt+q with the caps lock the spec names",
+			key:   Key{Code: 'q', Mod: ModCtrl | ModAlt | ModCapsLock},
+			input: "ctrl+capslock+q",
 			want:  false,
 		},
 		{
@@ -2278,6 +2368,55 @@ func TestKeyMatchString(t *testing.T) {
 			got := tc.key.MatchString(tc.input)
 			if got != tc.want {
 				t.Errorf("expected %v but got %v", tc.want, got)
+			}
+		})
+	}
+}
+
+// TestKeyMatchStringDecodedLockReports matches the keys the decoder builds
+// from Kitty keyboard reports that carry lock states, including the text it
+// derives for them.
+func TestKeyMatchStringDecodedLockReports(t *testing.T) {
+	cases := []struct {
+		seq   string
+		input string
+		want  bool
+	}{
+		{"\x1b[57399;129u", "kp0", true},             // num lock, text "0"
+		{"\x1b[57399;129u", "numlock+kp0", true},     // num lock, text "0"
+		{"\x1b[57399;130u", "shift+kp0", true},       // shift, num lock, text "0"
+		{"\x1b[57399;130u", "kp0", false},            // shift, num lock, text "0"
+		{"\x1b[57399;65u", "kp0", true},              // caps lock, text "0"
+		{"\x1b[57399;193u", "kp0", true},             // caps lock, num lock, text "0"
+		{"\x1b[57399;66u", "shift+kp0", true},        // shift, caps lock, text "0"
+		{"\x1b[49:33;66u", "shift+1", true},          // shift, caps lock, text "!"
+		{"\x1b[97;65;65u", "A", true},                // caps lock, text "A"
+		{"\x1b[97;65;65u", "a", false},               // caps lock, text "A"
+		{"\x1b[97;66;97u", "a", true},                // shift, caps lock, text "a"
+		{"\x1b[97;66;97u", "shift+a", false},         // shift, caps lock, text "a"
+		{"\x1b[97;193u", "A", true},                  // caps lock, num lock, text "A"
+		{"\x1b[97;193u", "a", false},                 // caps lock, num lock, text "A"
+		{"\x1b[97;193u", "numlock+a", false},         // caps lock, num lock, text "A"
+		{"\x1b[97;193u", "capslock+numlock+a", true}, // caps lock, num lock, text "A"
+		{"\x1b[1080;65;1048u", "и", false},           // caps lock, text "И"
+		{"\x1b[1080;65;1048u", "И", true},            // caps lock, text "И"
+		{"\x1b[223;65u", "ß", true},                  // caps lock, text "ß"
+		{"\x1b[223;67;223u", "alt+ß", true},          // alt, caps lock, text "ß"
+		{"\x1b[8364;65u", "€", true},                 // caps lock, text "€"
+	}
+
+	for _, tc := range cases {
+		t.Run(fmt.Sprintf("%q %s", tc.seq, tc.input), func(t *testing.T) {
+			var p EventDecoder
+			_, e := p.Decode([]byte(tc.seq))
+			ke, ok := e.(KeyEvent)
+			if !ok {
+				t.Fatalf("decoded %T, want a KeyEvent", e)
+			}
+			k := ke.Key()
+			if got := k.MatchString(tc.input); got != tc.want {
+				t.Errorf("Key{Code: %#x, Mod: %#x, Text: %q}.MatchString(%q) = %v, want %v",
+					k.Code, int(k.Mod), k.Text, tc.input, got, tc.want)
 			}
 		})
 	}
