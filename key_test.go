@@ -682,6 +682,35 @@ func TestParseSequence(t *testing.T) {
 			[]Event{KeyPressEvent{Code: '4', Text: ";", Mod: ModShift}},
 		},
 
+		// Kitty alternate keys: unicode-key-code:shifted-key:base-layout-key.
+		// A lone alternate key is the shifted key.
+		seqTest{
+			[]byte("\x1b[97:65;2u"),
+			[]Event{KeyPressEvent{Code: 'a', ShiftedCode: 'A', Text: "A", Mod: ModShift}},
+		},
+		// Dvorak alt+x: an empty shifted sub-field reports only the base
+		// layout key, the "b" key on a US PC-101 keyboard.
+		seqTest{
+			[]byte("\x1b[120::98;3u"),
+			[]Event{KeyPressEvent{Code: 'x', BaseCode: 'b', Mod: ModAlt}},
+		},
+		// Dvorak alt+shift+x.
+		seqTest{
+			[]byte("\x1b[120:88:98;4u"),
+			[]Event{KeyPressEvent{Code: 'x', ShiftedCode: 'X', BaseCode: 'b', Mod: ModShift | ModAlt}},
+		},
+		// Russian alt+и.
+		seqTest{
+			[]byte("\x1b[1080::98;3u"),
+			[]Event{KeyPressEvent{Code: 'и', BaseCode: 'b', Mod: ModAlt}},
+		},
+		// Russian shift+и without associated text: the text comes from the
+		// shifted key, not from the base layout key.
+		seqTest{
+			[]byte("\x1b[1080:1048:98;2u"),
+			[]Event{KeyPressEvent{Code: 'и', ShiftedCode: 'И', BaseCode: 'b', Text: "И", Mod: ModShift}},
+		},
+
 		// focus/blur
 		seqTest{
 			[]byte{'\x1b', '[', 'I'},
